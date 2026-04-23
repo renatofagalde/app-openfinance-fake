@@ -1,0 +1,94 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: openfinance-fake - Mock server para testes do robô receptor OBC
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 128
+    Runtime: provided.al2023
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        GIN_MODE: release
+
+Resources:
+
+  OpenFinanceFakeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: openfinance-fake
+      CodeUri: ../../dist/
+      Handler: bootstrap
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ConsentimentoTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PermissaoTable
+      Events:
+        ProxyRoot:
+          Type: Api
+          Properties:
+            Path: /
+            Method: ANY
+            RestApiId: !Ref OpenFinanceFakeApi
+        ProxyGreedy:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+            RestApiId: !Ref OpenFinanceFakeApi
+      Tags:
+        Project: openfinance-fake
+        Environment: dev
+
+  OpenFinanceFakeApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: openfinance-fake-api
+      StageName: dev
+      Description: API Gateway do openfinance-fake
+
+  ConsentimentoTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: openfinance-fake-consentimento
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: consent_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: consent_id
+          KeyType: HASH
+      Tags:
+        - Key: Project
+          Value: openfinance-fake
+
+  PermissaoTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: openfinance-fake-permissao
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: consent_id
+          AttributeType: S
+        - AttributeName: permission
+          AttributeType: S
+      KeySchema:
+        - AttributeName: consent_id
+          KeyType: HASH
+        - AttributeName: permission
+          KeyType: RANGE
+      Tags:
+        - Key: Project
+          Value: openfinance-fake
+
+Outputs:
+  ApiUrl:
+    Description: URL da API Gateway
+    Value: !Sub "https://${OpenFinanceFakeApi}.execute-api.${AWS::Region}.amazonaws.com/dev"
+  FunctionArn:
+    Description: ARN da Lambda
+    Value: !GetAtt OpenFinanceFakeFunction.Arn
